@@ -81,29 +81,34 @@ def _run_streaming(
     white_results: list[CheckResult] = []
     black_results: list[CheckResult] = []
 
+    def submit_group(urls: dict[str, str]) -> dict:
+        return {
+            pool.submit(check_url, name, url, timeout): name
+            for name, url in urls.items()
+        }
+
+    def collect_group(urls: dict[str, str], futures: dict) -> list[CheckResult]:
+        by_name: dict[str, CheckResult] = {}
+        for fut in as_completed(futures):
+            r = fut.result()
+            by_name[r.name] = r
+        return [by_name[name] for name in urls if name in by_name]
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        white_futs = {
-            pool.submit(check_url, name, url, timeout): name
-            for name, url in (white_urls.items() if run_white else [])
-        }
-        black_futs = {
-            pool.submit(check_url, name, url, timeout): name
-            for name, url in (black_urls.items() if run_black else [])
-        }
+        white_futs = submit_group(white_urls) if run_white else {}
+        black_futs = submit_group(black_urls) if run_black else {}
 
         if run_white:
             print_section("Whitelist (should always work)")
-            for fut in as_completed(white_futs):
-                r = fut.result()
-                white_results.append(r)
+            white_results = collect_group(white_urls, white_futs)
+            for r in white_results:
                 print_result(r)
                 sys.stdout.flush()
 
         if run_black:
             print_section("Blacklist (RKN-restricted)")
-            for fut in as_completed(black_futs):
-                r = fut.result()
-                black_results.append(r)
+            black_results = collect_group(black_urls, black_futs)
+            for r in black_results:
                 print_result(r)
                 sys.stdout.flush()
 

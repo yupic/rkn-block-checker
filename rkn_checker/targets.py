@@ -28,9 +28,7 @@ WHITE_URLS: dict[str, str] = {
 
 
 BLACK_URLS: dict[str, str] = {
-    "instagram":    "https://www.instagram.com/",
 #    "facebook":     "https://www.facebook.com/",
-    "twitter/x":    "https://x.com/",
 #    "linkedin":     "https://www.linkedin.com/",
 #    "discord":      "https://discord.com/",
 #    "dailymotion":  "https://www.dailymotion.com/",
@@ -38,22 +36,24 @@ BLACK_URLS: dict[str, str] = {
 #    "rutracker":    "https://rutracker.org/",
 #    "tor-project":  "https://www.torproject.org/",
 #    "protonvpn":    "https://protonvpn.com/",
-    "deepl":        "https://www.deepl.com/",
 #    "patreon":      "https://www.patreon.com/",
 #    "bbc-russian":  "https://www.bbc.com/russian",
-    "meduza":       "https://meduza.io/",
 #    "dw-russian":   "https://www.dw.com/ru/",
-    "cloudflare":   "https://www.cloudflare.com/",
     "amazon":       "https://www.amazon.com/",
     "akamai":       "https://www.akamai.com/",
     "aws":          "https://aws.amazon.com/",
-    "ovh":          "https://www.ovhcloud.com/",
+    "cloudflare":   "https://www.cloudflare.com/",
     "hetzner":      "https://www.hetzner.com/",
+    "ovh":          "https://www.ovhcloud.com/",
+    "deepl":        "https://www.deepl.com/",
+    "instagram":    "https://www.instagram.com/",
+    "twitter/x":    "https://x.com/",
+    "telegram":     "https://web.telegram.org/",
     "google":       "https://google.com/",
     "youtube":      "https://youtube.com/",
-    "telegram":     "https://web.telegram.org/",
-    "fontanka":     "https://www.fontanka.ru",
     "chatgpt":      "https://chatgpt.com",
+    "meduza":       "https://meduza.io/",
+    "fontanka":     "https://www.fontanka.ru",
 }
 
 
