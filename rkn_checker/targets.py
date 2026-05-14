@@ -39,21 +39,36 @@ BLACK_URLS: dict[str, str] = {
 #    "patreon":      "https://www.patreon.com/",
 #    "bbc-russian":  "https://www.bbc.com/russian",
 #    "dw-russian":   "https://www.dw.com/ru/",
+    # CDN и облачные провайдеры
     "amazon":       "https://www.amazon.com/",
     "akamai":       "https://www.akamai.com/",
     "aws":          "https://aws.amazon.com/",
     "cloudflare":   "https://www.cloudflare.com/",
     "hetzner":      "https://www.hetzner.com/",
     "ovh":          "https://www.ovhcloud.com/",
+    # Блокируют РФ
     "deepl":        "https://www.deepl.com/",
+    "strava":       "https://strava.com/",
+    "upwork":       "https://upwork.com/",
+    "canva":        "https://canva.com/",
+    # Открыть можно, но пользоваться нельзя
+    "anthropic":    "https://anthropic.com",
+    "claude":       "https://claude.ai",
+    "chatgpt":      "https://chatgpt.com",
+    "gemini":       "https://gemini.google.com",
+    "miro":         "https://miro.com",
+    "notion":       "https://notion.com",
+    # Заблокированы в РФ
     "instagram":    "https://www.instagram.com/",
     "twitter/x":    "https://x.com/",
-    "telegram":     "https://web.telegram.org/",
-    "google":       "https://google.com/",
+    "telegram":     "https://telegram.org/",
     "youtube":      "https://youtube.com/",
-    "chatgpt":      "https://chatgpt.com",
     "meduza":       "https://meduza.io/",
+    # Должны работать
+    "github":       "https://github.com",
+    "google":       "https://google.com/",
     "fontanka":     "https://www.fontanka.ru",
+    "tbank":        "https://www.tbank.ru",
 }
 
 
@@ -70,4 +85,5 @@ STUB_MARKERS: tuple[str, ...] = (
     "rkn.gov.ru/org/register",
     "единый реестр",
     "запрещен",
+    "block access from your country",
 )
