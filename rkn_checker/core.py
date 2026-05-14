@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_WORKERS = 10
 
 
+def _format_ips(ips: list[str]) -> str:
+    return ", ".join(ips)
+
+
 def get_self_info(timeout: float = 5.0) -> dict:
     try:
         r = requests.get("https://ipinfo.io/json", timeout=timeout)
@@ -30,16 +34,23 @@ def get_self_info(timeout: float = 5.0) -> dict:
 def _extract_451_reason(body: str) -> str:
     """Извлекает короткую причину из тела 451-ответа."""
     import re
+
     # <title>...</title>
     m = re.search(r"<title[^>]*>([^<]{3,80})</title>", body, re.I)
     if m:
         text = m.group(1).strip()
         if text.lower() not in ("451", "unavailable", "blocked", "error"):
             return text
+
     # meta description
-    m = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.[^"\']{3,120})["\']', body, re.I)
+    m = re.search(
+        r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.[^"\']{3,120})["\']',
+        body,
+        re.I,
+    )
     if m:
         return m.group(1).strip()
+
     # первый значимый текст в <p> или <h1>
     m = re.search(r"<(?:h1|p)[^>]*>\s*([^<]{10,120})\s*</(?:h1|p)>", body, re.I)
     if m:
@@ -51,10 +62,14 @@ def check_url(name: str, url: str, timeout: float = 5.0) -> CheckResult:
     host = urlparse(url).hostname or url
     res = CheckResult(name=name, url=url)
 
-    res.sys_ip = dns_mod.resolve_system(host)
-    res.doh_ip, res.doh_endpoint, res.doh_time_ms = dns_mod.resolve_doh(host, timeout=timeout)
+    res.sys_ips = dns_mod.resolve_system_all(host)
+    res.sys_ip = res.sys_ips[0] if res.sys_ips else None
+    res.doh_ips, res.doh_endpoint, res.doh_time_ms = dns_mod.resolve_doh_all(
+        host, timeout=timeout
+    )
+    res.doh_ip = res.doh_ips[0] if res.doh_ips else None
 
-    if res.sys_ip is None and res.doh_ip is not None:
+    if not res.sys_ips and res.doh_ips:
         res.verdict = Verdict.DNS_BLOCK
         res.confidence = Confidence.HIGH
         res.dns_error = "system resolver failed, DoH succeeded"
@@ -63,7 +78,7 @@ def check_url(name: str, url: str, timeout: float = 5.0) -> CheckResult:
         )
         return res
 
-    if res.sys_ip is None and res.doh_ip is None:
+    if not res.sys_ips and not res.doh_ips:
         res.verdict = Verdict.DOWN
         res.confidence = Confidence.LOW
         res.dns_error = "domain not resolved anywhere"
@@ -73,22 +88,24 @@ def check_url(name: str, url: str, timeout: float = 5.0) -> CheckResult:
         )
         return res
 
-    if res.sys_ip and res.doh_ip and res.sys_ip != res.doh_ip:
+    if res.sys_ips and res.doh_ips and set(res.sys_ips).isdisjoint(res.doh_ips):
         res.dns_mismatch = True
         res.notes.append(
-            f"DNS mismatch: sys={res.sys_ip} vs doh={res.doh_ip} "
+            f"DNS mismatch: sys=[{_format_ips(res.sys_ips)}] vs "
+            f"doh=[{_format_ips(res.doh_ips)}] "
             "(may indicate transparent DNS rewriting)"
         )
 
-    if res.sys_ip is not None and res.doh_ip is None:
+    if res.sys_ips and not res.doh_ips:
         res.notes.append(
             "DoH lookup failed — control comparison unavailable, "
             "DNS poisoning cannot be ruled out"
         )
-    elif res.doh_ip is not None and res.doh_endpoint is not None:
-        res.notes.append(
-            f"DoH: {res.doh_endpoint} → {res.doh_ip} ({res.doh_time_ms:.0f}ms)"
-        )
+    #elif res.doh_ips and res.doh_endpoint is not None:
+    #    res.notes.append(
+    #        f"DoH: {res.doh_endpoint} → {_format_ips(res.doh_ips)} "
+    #        f"({res.doh_time_ms:.0f}ms)"
+    #    )
 
     res.tcp_ok, res.tcp_time_ms, res.tcp_error = network.check_tcp(
         host, timeout=timeout
@@ -169,9 +186,7 @@ def check_url(name: str, url: str, timeout: float = 5.0) -> CheckResult:
     if http_mod.looks_like_stub(probe.body_snippet):
         res.verdict = Verdict.HTTP_STUB
         res.confidence = Confidence.HIGH
-        res.notes.append(
-            "response body matches a known ISP stub-page marker"
-        )
+        res.notes.append("response body matches a known ISP stub-page marker")
         return res
 
     res.verdict = Verdict.OK

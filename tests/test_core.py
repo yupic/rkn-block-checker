@@ -9,20 +9,26 @@ def _patches(
     *,
     sys_ip="1.2.3.4",
     doh_ip="1.2.3.4",
+    sys_ips=None,
+    doh_ips=None,
     tcp=(True, 10.0, None),
     tls=(True, 20.0, "example.com", None),
     http=None,
 ):
     if http is None:
         http = HttpProbe(status_code=200, elapsed_ms=100.0, body_snippet="<html>ok</html>")
+    if sys_ips is None:
+        sys_ips = [sys_ip] if sys_ip is not None else []
+    if doh_ips is None:
+        doh_ips = [doh_ip] if doh_ip is not None else []
     doh_result = (
-        (doh_ip, "https://example-doh.test/dns-query", 12.0)
-        if doh_ip is not None
-        else (None, None, None)
+        (doh_ips, "https://example-doh.test/dns-query", 12.0)
+        if doh_ips
+        else ([], None, None)
     )
     return [
-        patch("rkn_checker.core.dns_mod.resolve_system", return_value=sys_ip),
-        patch("rkn_checker.core.dns_mod.resolve_doh", return_value=doh_result),
+        patch("rkn_checker.core.dns_mod.resolve_system_all", return_value=sys_ips),
+        patch("rkn_checker.core.dns_mod.resolve_doh_all", return_value=doh_result),
         patch("rkn_checker.core.network.check_tcp", return_value=tcp),
         patch("rkn_checker.core.network.check_tls", return_value=tls),
         patch("rkn_checker.core.http_mod.fetch", return_value=http),
@@ -60,6 +66,15 @@ class TestVerdictPath:
         assert r.dns_mismatch is True
         assert r.verdict == Verdict.OK
         assert r.confidence == Confidence.MEDIUM
+
+    def test_dns_overlap_is_not_flagged_as_mismatch(self):
+        r = _run_with(_patches(
+            sys_ips=["77.88.44.242", "77.88.55.242"],
+            doh_ips=["77.88.55.242"],
+        ))
+        assert r.dns_mismatch is False
+        assert r.verdict == Verdict.OK
+        assert r.confidence == Confidence.HIGH
 
     def test_tcp_timeout_yields_timeout_verdict(self):
         r = _run_with(_patches(tcp=(False, None, "timeout")))

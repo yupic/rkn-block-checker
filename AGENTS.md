@@ -5,6 +5,17 @@
 
 ---
 
+## Session update: DNS multi-answer comparison
+
+- DNS comparison now uses all IPv4 A records returned by system DNS and DoH.
+- Added `resolve_system_all()` and `resolve_doh_all()`; existing `resolve_system()` and
+  `resolve_doh()` remain as first-IP compatibility wrappers.
+- `CheckResult` now stores `sys_ips` and `doh_ips` in addition to legacy `sys_ip`
+  and `doh_ip`.
+- `DNS mismatch` is reported only when both resolvers return A records and the
+  two address sets have no intersection. Different first IPs are no longer enough
+  to flag a mismatch.
+
 ## Проект
 
 **rkn-block-checker** — CLI-инструмент диагностики блокировок РКН/ТСПУ по слоям: DNS → TCP → TLS → HTTP.
