@@ -15,9 +15,14 @@ def _patches(
 ):
     if http is None:
         http = HttpProbe(status_code=200, elapsed_ms=100.0, body_snippet="<html>ok</html>")
+    doh_result = (
+        (doh_ip, "https://example-doh.test/dns-query", 12.0)
+        if doh_ip is not None
+        else (None, None, None)
+    )
     return [
         patch("rkn_checker.core.dns_mod.resolve_system", return_value=sys_ip),
-        patch("rkn_checker.core.dns_mod.resolve_doh", return_value=doh_ip),
+        patch("rkn_checker.core.dns_mod.resolve_doh", return_value=doh_result),
         patch("rkn_checker.core.network.check_tcp", return_value=tcp),
         patch("rkn_checker.core.network.check_tls", return_value=tls),
         patch("rkn_checker.core.http_mod.fetch", return_value=http),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from collections import Counter
+from http import HTTPStatus
 
 from .models import BLOCKED_VERDICTS, CheckResult, Confidence, Verdict
 
@@ -33,32 +34,30 @@ def _label_for(verdict: Verdict, confidence: Confidence) -> tuple[str, str]:
     if verdict == Verdict.OK:
         return C.GREEN, "✓ OK"
     if verdict == Verdict.DOWN:
-        return C.GRAY, "· DOWN (сервер недоступен)"
+        return C.GRAY, "· DOWN"
     if verdict == Verdict.UNKNOWN:
-        return C.GRAY, "? UNKNOWN (причина неясна)"
+        return C.GRAY, "? UNK"
 
     # (пояснение, что именно режет трафик)
     base, ru = {
-        Verdict.DNS_BLOCK: ("DNS_BLOCK",  "провайдер подменяет DNS"),
-        Verdict.TCP_RESET: ("TCP_RESET",  "провайдер рвёт TCP-соединение"),
+        Verdict.DNS_BLOCK: ("DNS BLOCK",  "провайдер подменяет DNS"),
+        Verdict.TCP_RESET: ("TCP RESET",  "провайдер рвёт TCP-соединение"),
         Verdict.TLS_BLOCK: ("TLS DPI",    "DPI режет по SNI в TLS"),
-        Verdict.HTTP_STUB: ("HTTP_STUB",  "провайдер подставляет заглушку"),
+        Verdict.HTTP_STUB: ("HTTP STUB",  "провайдер подставляет заглушку"),
         Verdict.TIMEOUT:   ("TIMEOUT",    "IP заблокирован / нет маршрута"),
     }.get(verdict, (verdict.value, ""))
 
-    label = f"{base} ({ru})" if ru else base
-
     if confidence == Confidence.HIGH:
-        return C.RED, f"✗ {label}"
+        return C.RED, f"✗ {base}"
     if confidence == Confidence.MEDIUM:
-        return C.YELLOW, f"~ {label}?"
-    return C.GRAY, f"? {label}?"
+        return C.YELLOW, f"# {base}?"
+    return C.GRAY, f"? {base}?"
 
 
 def print_header(info: dict) -> None:
-    print(f"\n{C.BOLD}{C.CYAN}{'=' * 70}{C.RESET}")
+    print(f"\n{C.BOLD}{C.CYAN}{'=' * 54}{C.RESET}")
     print(f"{C.BOLD}{C.CYAN}  RKN Block Checker{C.RESET}")
-    print(f"{C.BOLD}{C.CYAN}{'=' * 70}{C.RESET}")
+    print(f"{C.BOLD}{C.CYAN}{'=' * 54}{C.RESET}")
     if info:
         print(f"  {C.DIM}IP:{C.RESET}       {info.get('ip', '?')}")
         print(f"  {C.DIM}ISP:{C.RESET}      {info.get('org', '?')}")
@@ -66,36 +65,56 @@ def print_header(info: dict) -> None:
         print(f"  {C.DIM}Location:{C.RESET} {loc}")
     else:
         print(f"  {C.YELLOW}couldn't fetch IP info{C.RESET}")
-    print(f"{C.BOLD}{C.CYAN}{'-' * 70}{C.RESET}")
+    print(f"{C.BOLD}{C.CYAN}{'-' * 54}{C.RESET}")
 
 
 def print_section(title: str) -> None:
     print(f"\n{C.BOLD}{title}{C.RESET}")
     print(
-        f"  {C.DIM}{'name':<14}{'verdict':<42}"
-        f"{'TCP':>8}{'TLS':>8}{'PLT':>8}  {'status':<6}{C.RESET}"
+        f"{C.DIM}{'name':<12}{'verdict':<12}"
+        f"{'TCP':>8}{'TLS':>8}{'PLT':>8}  {'code':<4}{C.RESET}"
     )
-    print(f"  {C.DIM}{'-' * 88}{C.RESET}")
+    print(f"{C.DIM}{'-' * 54}{C.RESET}")
 
 
 def print_result(r: CheckResult) -> None:
     color, label = _label_for(r.verdict, r.confidence)
 
     status = str(r.status_code) if r.status_code else "-"
+    status_col = _colored_http_status(f"{status:<4}", r.status_code)
     tcp = f"{r.tcp_time_ms:.0f}ms" if r.tcp_time_ms is not None else "-"
     tls = f"{r.tls_time_ms:.0f}ms" if r.tls_time_ms is not None else "-"
     plt = f"{r.plt_ms:.0f}ms" if r.plt_ms is not None else "-"
 
-    name_col = r.name[:14].ljust(14)
-    label_col = label[:42].ljust(42)
+    name_col = r.name[:12].ljust(12)
+    label_col = label[:12].ljust(12)
     print(
-        f"  {name_col}"
+        f"{name_col}"
         f"{color}{label_col}{C.RESET}"
         f"{tcp:>8}{tls:>8}{plt:>8}  "
-        f"{status:<6}"
+        f"{status_col}"
     )
     for note in r.notes:
-        print(f"    {C.DIM}└ {note}{C.RESET}")
+        print(f"  {C.DIM}└ {note}{C.RESET}")
+    status_note = _http_status_note(r.status_code)
+    if status_note:
+        print(f"  {C.DIM}└ {status_note}{C.RESET}")
+
+
+def _http_status_note(status_code: int | None) -> str | None:
+    if status_code is None or status_code == 200:
+        return None
+    try:
+        phrase = HTTPStatus(status_code).phrase
+    except ValueError:
+        phrase = "Unknown Status"
+    return f"HTTP code {status_code} {phrase}"
+
+
+def _colored_http_status(status: str, status_code: int | None) -> str:
+    if status_code is not None and 400 <= status_code <= 499:
+        return f"{C.RED}{status}{C.RESET}"
+    return status
 
 
 def print_summary(white: list[CheckResult], black: list[CheckResult]) -> None:
@@ -111,9 +130,9 @@ def print_summary(white: list[CheckResult], black: list[CheckResult]) -> None:
         if r.verdict in BLOCKED_VERDICTS and r.confidence == Confidence.HIGH
     )
 
-    print(f"\n{C.BOLD}{C.CYAN}{'=' * 70}{C.RESET}")
+    print(f"\n{C.BOLD}{C.CYAN}{'=' * 54}{C.RESET}")
     print(f"{C.BOLD}  Summary{C.RESET}")
-    print(f"{C.BOLD}{C.CYAN}{'-' * 70}{C.RESET}")
+    print(f"{C.BOLD}{C.CYAN}{'-' * 54}{C.RESET}")
     print(f"  Whitelist: {white_ok}/{len(white)} working")
     print(
         f"  Blacklist: {black_ok}/{len(black)} open, "
@@ -136,7 +155,7 @@ def print_summary(white: list[CheckResult], black: list[CheckResult]) -> None:
             type_color, label = _label_for(verdict_type, Confidence.HIGH)
             print(f"    {type_color}{label}{C.RESET}: {count}")
 
-    print(f"{C.BOLD}{C.CYAN}{'=' * 70}{C.RESET}\n")
+    print(f"{C.BOLD}{C.CYAN}{'=' * 54}{C.RESET}\n")
 
 
 def _summary_verdict(
