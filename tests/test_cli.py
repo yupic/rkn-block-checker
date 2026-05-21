@@ -34,6 +34,12 @@ class TestJsonModeTimeout:
 
     @patch("rkn_checker.cli.get_self_info", return_value=None)
     @patch("rkn_checker.core.check_urls_parallel", return_value=[])
+    def test_json_mode_enables_doh_only_with_flag(self, mock_parallel, mock_self):
+        main(["--json", "--no-self-info", "--doh"])
+        assert mock_parallel.call_args.kwargs["enable_doh"] is True
+
+    @patch("rkn_checker.cli.get_self_info", return_value=None)
+    @patch("rkn_checker.core.check_urls_parallel", return_value=[])
     def test_no_self_info_flag_skips_lookup(self, mock_parallel, mock_self):
         main(["--json", "--no-self-info"])
         mock_self.assert_not_called()
@@ -53,7 +59,7 @@ class TestCliOutputOrder:
     def test_table_prints_in_input_order_after_parallel_checks(
         self, mock_print_result, mock_print_section
     ):
-        def check_in_completion_order(name, url, timeout):
+        def check_in_completion_order(name, url, timeout, enable_doh=False):
             import time
 
             delays = {"a": 0.01, "b": 0.02, "c": 0.03}

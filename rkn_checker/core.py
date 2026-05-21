@@ -14,7 +14,7 @@ from .models import CheckResult, Confidence, Verdict
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_WORKERS = 10
+DEFAULT_WORKERS = 40
 
 
 def _format_ips(ips: list[str]) -> str:
@@ -58,18 +58,24 @@ def _extract_451_reason(body: str) -> str:
     return ""
 
 
-def check_url(name: str, url: str, timeout: float = 5.0) -> CheckResult:
+def check_url(
+    name: str,
+    url: str,
+    timeout: float = 5.0,
+    enable_doh: bool = False,
+) -> CheckResult:
     host = urlparse(url).hostname or url
     res = CheckResult(name=name, url=url)
 
     res.sys_ips = dns_mod.resolve_system_all(host)
     res.sys_ip = res.sys_ips[0] if res.sys_ips else None
-    res.doh_ips, res.doh_endpoint, res.doh_time_ms = dns_mod.resolve_doh_all(
-        host, timeout=timeout
-    )
-    res.doh_ip = res.doh_ips[0] if res.doh_ips else None
+    if enable_doh:
+        res.doh_ips, res.doh_endpoint, res.doh_time_ms = dns_mod.resolve_doh_all(
+            host, timeout=timeout
+        )
+        res.doh_ip = res.doh_ips[0] if res.doh_ips else None
 
-    if not res.sys_ips and res.doh_ips:
+    if enable_doh and not res.sys_ips and res.doh_ips:
         res.verdict = Verdict.DNS_BLOCK
         res.confidence = Confidence.HIGH
         res.dns_error = "system resolver failed, DoH succeeded"
@@ -78,17 +84,19 @@ def check_url(name: str, url: str, timeout: float = 5.0) -> CheckResult:
         )
         return res
 
-    if not res.sys_ips and not res.doh_ips:
+    if not res.sys_ips and (not enable_doh or not res.doh_ips):
         res.verdict = Verdict.DOWN
         res.confidence = Confidence.LOW
-        res.dns_error = "domain not resolved anywhere"
+        res.dns_error = (
+            "domain not resolved anywhere" if enable_doh else "system resolver failed"
+        )
         res.notes.append(
-            "domain doesn't resolve via system DNS or DoH — could be NXDOMAIN, "
+            "domain doesn't resolve via system DNS — could be NXDOMAIN, "
             "downed authoritative server, or DNS-level block"
         )
         return res
 
-    if res.sys_ips and res.doh_ips and set(res.sys_ips).isdisjoint(res.doh_ips):
+    if enable_doh and res.sys_ips and res.doh_ips and set(res.sys_ips).isdisjoint(res.doh_ips):
         res.dns_mismatch = True
         res.notes.append(
             f"DNS mismatch: sys=[{_format_ips(res.sys_ips)}] vs "
@@ -96,7 +104,7 @@ def check_url(name: str, url: str, timeout: float = 5.0) -> CheckResult:
             "(may indicate transparent DNS rewriting)"
         )
 
-    if res.sys_ips and not res.doh_ips:
+    if enable_doh and res.sys_ips and not res.doh_ips:
         res.notes.append(
             "DoH lookup failed — control comparison unavailable, "
             "DNS poisoning cannot be ruled out"
@@ -198,6 +206,7 @@ def iter_check_urls(
     urls: dict[str, str],
     max_workers: int = DEFAULT_WORKERS,
     timeout: float = 5.0,
+    enable_doh: bool = False,
 ) -> Iterator[CheckResult]:
     """Yield CheckResult objects as soon as each probe finishes.
 
@@ -211,7 +220,7 @@ def iter_check_urls(
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures_map: dict = {}
         for name, url in urls.items():
-            fut = pool.submit(check_url, name, url, timeout)
+            fut = pool.submit(check_url, name, url, timeout, enable_doh)
             futures_map[fut] = name
         for fut in as_completed(futures_map):
             try:
@@ -229,6 +238,7 @@ def check_urls_parallel(
     urls: dict[str, str],
     max_workers: int = DEFAULT_WORKERS,
     timeout: float = 5.0,
+    enable_doh: bool = False,
 ) -> list[CheckResult]:
     """Run all probes in parallel and return results in the original input order.
 
@@ -239,6 +249,11 @@ def check_urls_parallel(
     name_order = list(urls.keys())
     by_name = {
         r.name: r
-        for r in iter_check_urls(urls, max_workers=max_workers, timeout=timeout)
+        for r in iter_check_urls(
+            urls,
+            max_workers=max_workers,
+            timeout=timeout,
+            enable_doh=enable_doh,
+        )
     }
     return [by_name[name] for name in name_order if name in by_name]

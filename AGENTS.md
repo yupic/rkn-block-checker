@@ -5,6 +5,15 @@
 
 ---
 
+## Session update: DoH opt-in and worker default
+
+- Default parallel worker count is now 40 (`DEFAULT_WORKERS = 40`).
+- DoH comparison is disabled by default and can be enabled with the `--doh` CLI flag.
+- `check_url()`, `iter_check_urls()`, and `check_urls_parallel()` now accept
+  `enable_doh: bool = False`.
+- With DoH disabled, connections and verdicts rely on system DNS; DoH fields remain empty
+  and DNS_BLOCK/mismatch checks are skipped.
+
 ## Session update: DNS multi-answer comparison
 
 - DNS comparison now uses all IPv4 A records returned by system DNS and DoH.

@@ -35,11 +35,11 @@ def _patches(
     ]
 
 
-def _run_with(patches):
+def _run_with(patches, enable_doh=False):
     for p in patches:
         p.start()
     try:
-        return check_url("test", "https://example.com/")
+        return check_url("test", "https://example.com/", enable_doh=enable_doh)
     finally:
         for p in patches:
             p.stop()
@@ -51,18 +51,25 @@ class TestVerdictPath:
         assert r.verdict == Verdict.OK
         assert r.confidence == Confidence.HIGH
 
+    def test_doh_is_disabled_by_default(self):
+        patches = _patches(sys_ip="1.2.3.4", doh_ip="2.2.2.2")
+        r = _run_with(patches)
+        assert r.doh_ips == []
+        assert r.dns_mismatch is False
+        assert r.verdict == Verdict.OK
+
     def test_dns_block_when_system_fails_but_doh_works(self):
-        r = _run_with(_patches(sys_ip=None, doh_ip="1.2.3.4"))
+        r = _run_with(_patches(sys_ip=None, doh_ip="1.2.3.4"), enable_doh=True)
         assert r.verdict == Verdict.DNS_BLOCK
         assert r.confidence == Confidence.HIGH
 
     def test_down_when_neither_resolver_finds_domain(self):
-        r = _run_with(_patches(sys_ip=None, doh_ip=None))
+        r = _run_with(_patches(sys_ip=None, doh_ip=None), enable_doh=True)
         assert r.verdict == Verdict.DOWN
         assert r.confidence == Confidence.LOW
 
     def test_dns_mismatch_is_flagged_but_not_fatal(self):
-        r = _run_with(_patches(sys_ip="1.1.1.1", doh_ip="2.2.2.2"))
+        r = _run_with(_patches(sys_ip="1.1.1.1", doh_ip="2.2.2.2"), enable_doh=True)
         assert r.dns_mismatch is True
         assert r.verdict == Verdict.OK
         assert r.confidence == Confidence.MEDIUM
@@ -71,7 +78,7 @@ class TestVerdictPath:
         r = _run_with(_patches(
             sys_ips=["77.88.44.242", "77.88.55.242"],
             doh_ips=["77.88.55.242"],
-        ))
+        ), enable_doh=True)
         assert r.dns_mismatch is False
         assert r.verdict == Verdict.OK
         assert r.confidence == Confidence.HIGH
@@ -126,14 +133,14 @@ class TestVerdictPath:
         assert r.confidence == Confidence.HIGH
 
     def test_doh_failure_is_noted(self):
-        r = _run_with(_patches(sys_ip="1.2.3.4", doh_ip=None))
+        r = _run_with(_patches(sys_ip="1.2.3.4", doh_ip=None), enable_doh=True)
         assert any("DoH lookup failed" in n for n in r.notes)
 
     def test_doh_failure_continues_probing(self):
-        r = _run_with(_patches(sys_ip="1.2.3.4", doh_ip=None))
+        r = _run_with(_patches(sys_ip="1.2.3.4", doh_ip=None), enable_doh=True)
         assert r.verdict == Verdict.OK
 
     def test_dns_mismatch_ok_gets_medium_confidence(self):
-        r = _run_with(_patches(sys_ip="1.1.1.1", doh_ip="2.2.2.2"))
+        r = _run_with(_patches(sys_ip="1.1.1.1", doh_ip="2.2.2.2"), enable_doh=True)
         assert r.verdict == Verdict.OK
         assert r.confidence == Confidence.MEDIUM

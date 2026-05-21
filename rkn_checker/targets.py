@@ -64,6 +64,7 @@ BLACK_URLS: dict[str, str] = {
     "telegram":     "https://telegram.org/",
     "youtube":      "https://youtube.com/",
     "meduza":       "https://meduza.io/",
+    "amnezia":      "https://amnezia.org/",
     # Должны работать
     "github":       "https://github.com",
     "google":       "https://google.com/",

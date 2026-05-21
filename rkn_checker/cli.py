@@ -6,7 +6,7 @@ import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .core import check_url, get_self_info
+from .core import DEFAULT_WORKERS, check_url, get_self_info
 from .lists import ListLoadError, load_targets
 from .models import CheckResult
 from .output import print_header, print_result, print_section, print_summary
@@ -35,8 +35,10 @@ def _build_parser() -> argparse.ArgumentParser:
                         "(replaces the built-in blacklist)")
     p.add_argument("--timeout", type=float, default=5.0,
                    help="per-probe timeout in seconds (default: 5.0)")
-    p.add_argument("--workers", type=int, default=10,
-                   help="thread pool size for parallel checks (default: 10)")
+    p.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
+                   help=f"thread pool size for parallel checks (default: {DEFAULT_WORKERS})")
+    p.add_argument("--doh", dest="enable_doh", action="store_true",
+                   help="enable DoH control DNS comparison (disabled by default)")
     p.add_argument("-v", "--verbose", action="count", default=0,
                    help="increase log verbosity (-v info, -vv debug)")
     p.add_argument("--no-self-info", dest="no_self_info", action="store_true",
@@ -77,13 +79,14 @@ def _run_streaming(
     black_urls: dict[str, str],
     workers: int,
     timeout: float,
+    enable_doh: bool = False,
 ) -> tuple[list[CheckResult], list[CheckResult]]:
     white_results: list[CheckResult] = []
     black_results: list[CheckResult] = []
 
     def submit_group(urls: dict[str, str]) -> dict:
         return {
-            pool.submit(check_url, name, url, timeout): name
+            pool.submit(check_url, name, url, timeout, enable_doh): name
             for name, url in urls.items()
         }
 
@@ -145,11 +148,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.as_json:
         from .core import check_urls_parallel
         white_results = (
-            check_urls_parallel(white_urls, args.workers, args.timeout)
+            check_urls_parallel(
+                white_urls,
+                args.workers,
+                args.timeout,
+                enable_doh=args.enable_doh,
+            )
             if run_white else []
         )
         black_results = (
-            check_urls_parallel(black_urls, args.workers, args.timeout)
+            check_urls_parallel(
+                black_urls,
+                args.workers,
+                args.timeout,
+                enable_doh=args.enable_doh,
+            )
             if run_black else []
         )
         self_info = get_self_info(timeout=args.timeout) if not args.no_self_info else None
@@ -169,7 +182,13 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.flush()
 
     white_results, black_results = _run_streaming(
-        run_white, run_black, white_urls, black_urls, args.workers, args.timeout,
+        run_white,
+        run_black,
+        white_urls,
+        black_urls,
+        args.workers,
+        args.timeout,
+        enable_doh=args.enable_doh,
     )
 
     if run_white and run_black:

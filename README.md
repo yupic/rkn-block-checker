@@ -90,7 +90,7 @@ rkn-check
 
 ```text
 rkn-check [-h] [--json] [--white] [--black] [--timeout TIMEOUT]
-          [--workers WORKERS] [-v]
+          [--workers WORKERS] [--doh] [-v]
 ```
 
 | flag | what it does |
@@ -99,7 +99,8 @@ rkn-check [-h] [--json] [--white] [--black] [--timeout TIMEOUT]
 | `--white` | only the control (whitelist) targets |
 | `--black` | only the blacklist targets |
 | `--timeout` | per-probe timeout in seconds (default 5.0) |
-| `--workers` | thread pool size for parallel checks (default 10) |
+| `--workers` | thread pool size for parallel checks (default 40) |
+| `--doh` | enable DoH control DNS comparison (disabled by default) |
 | `-v` / `-vv` | logging at INFO / DEBUG |
 
 ## JSON output
